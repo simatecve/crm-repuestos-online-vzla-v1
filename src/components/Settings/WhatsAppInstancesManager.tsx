@@ -683,6 +683,19 @@ export const WhatsAppInstancesManager: React.FC = () => {
                               <span className="text-sm">Conectar instancia</span>
                             </button>
                           )}
+                          
+                          {/* Verificar Estatus button - always visible */}
+                          <button
+                            onClick={() => {
+                              setSelectedInstance(instance);
+                              handleCheckStatus();
+                            }}
+                            className="flex items-center justify-center space-x-1 p-2 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            <span className="text-sm">Verificar Conexión</span>
+                          </button>
+                          
                           <button
                             onClick={() => {
                               setSelectedInstance(instance);
