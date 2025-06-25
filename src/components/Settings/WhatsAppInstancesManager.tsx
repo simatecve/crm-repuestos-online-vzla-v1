@@ -55,6 +55,9 @@ export const WhatsAppInstancesManager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'instances' | 'new'>('instances');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   
   // Form state
   const [newInstanceName, setNewInstanceName] = useState('');
@@ -143,18 +146,28 @@ export const WhatsAppInstancesManager: React.FC = () => {
       const responseData = await response.json();
 
       // Create the instance in Supabase
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('whatsapp_instances')
         .insert([{
           name: newInstanceName.trim(),
           color: selectedColor,
-          status: 'disconnected',
+          status: 'connecting',
+          qr_code: responseData.qrCode || null,
           created_by: (await supabase.auth.getUser()).data.user?.id
-        }]);
+        }])
+        .select();
 
       if (error) throw error;
 
-      toast.success('Instancia creada correctamente');
+      // Show QR code modal
+      if (data && data.length > 0 && responseData.qrCode) {
+        setSelectedInstance(data[0]);
+        setQrCode(responseData.qrCode);
+        setShowQrModal(true);
+      } else {
+        toast.success('Instancia creada correctamente');
+      }
+
       setNewInstanceName('');
       setSelectedColor('#3B82F6');
       setActiveTab('instances');
@@ -211,6 +224,62 @@ export const WhatsAppInstancesManager: React.FC = () => {
     } catch (error) {
       console.error('Error updating color:', error);
       toast.error('Error al actualizar el color');
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    if (!selectedInstance) return;
+
+    try {
+      setCheckingStatus(true);
+
+      // Find the status webhook
+      const statusWebhook = webhooks.find(w => w.name === 'estatus-instancia');
+      if (!statusWebhook) {
+        toast.error('No se encontró el webhook para verificar el estado');
+        return;
+      }
+
+      // Call the webhook
+      const response = await fetch(statusWebhook.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: selectedInstance.name
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al verificar el estado');
+      }
+
+      const responseData = await response.json();
+
+      // Update instance status
+      const { error } = await supabase
+        .from('whatsapp_instances')
+        .update({ 
+          status: responseData.status || 'disconnected'
+        })
+        .eq('id', selectedInstance.id);
+
+      if (error) throw error;
+
+      // Close modal and refresh instances
+      setShowQrModal(false);
+      setSelectedInstance(null);
+      setQrCode(null);
+      fetchInstances();
+      
+      toast.success('Estado actualizado correctamente');
+    } catch (error) {
+      console.error('Error checking status:', error);
+      toast.error('Error al verificar el estado: ' + (error as Error).message);
+    } finally {
+      setCheckingStatus(false);
     }
   };
 
@@ -535,6 +604,63 @@ export const WhatsAppInstancesManager: React.FC = () => {
               >
                 Cancelar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQrModal && selectedInstance && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Conectar WhatsApp
+              </h2>
+              <button
+                onClick={() => {
+                  setShowQrModal(false);
+                  setSelectedInstance(null);
+                  setQrCode(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Escanea este código QR con tu WhatsApp
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Abre WhatsApp en tu teléfono, ve a Configuración &gt; Dispositivos vinculados &gt; Vincular un dispositivo
+                </p>
+                
+                {qrCode && (
+                  <div className="flex justify-center mb-4">
+                    <img 
+                      src={qrCode} 
+                      alt="Código QR para WhatsApp" 
+                      className="w-64 h-64 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                )}
+                
+                <button
+                  onClick={handleCheckStatus}
+                  disabled={checkingStatus}
+                  className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2 transition-colors"
+                >
+                  {checkingStatus ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <CheckCircle className="w-5 h-5" />
+                  )}
+                  <span>Ya conecté mi WhatsApp</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
