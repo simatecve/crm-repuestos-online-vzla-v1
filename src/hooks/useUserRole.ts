@@ -16,33 +16,33 @@ export const useUserRole = () => {
       }
 
       try {
-        // Intentar obtener el rol desde user_profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
+        // Query the users table using the correct column names from your schema
+        const { data: userData, error: userError } = await supabase
+          .from('users')
           .select('role')
-          .eq('user_id', user.id)
+          .eq('id', user.id)
           .single();
 
-        if (profileData && !profileError) {
-          setUserRole(profileData.role);
+        if (userData && !userError) {
+          setUserRole(userData.role);
         } else {
-          // Fallback: usar metadata del usuario o asignar rol por defecto
+          // Fallback: use metadata del usuario o asignar rol por defecto
           const role = user.user_metadata?.role || 'admin'; // Por defecto admin para demo
           setUserRole(role);
           
-          // Intentar crear el perfil si no existe
+          // Intentar crear el usuario si no existe
           try {
             await supabase
-              .from('user_profiles')
+              .from('users')
               .insert([{
-                user_id: user.id,
+                id: user.id,
                 email: user.email || '',
                 full_name: user.user_metadata?.full_name || user.email || 'Usuario',
                 role: role
               }]);
           } catch (insertError) {
             // Ignorar errores de inserción (puede que ya exista)
-            console.log('Profile creation skipped:', insertError);
+            console.log('User creation skipped:', insertError);
           }
         }
       } catch (error) {
