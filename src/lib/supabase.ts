@@ -1,0 +1,476 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export type Database = {
+  public: {
+    Tables: {
+      usuarios: {
+        Row: {
+          id: string;
+          email: string;
+          nombre_completo: string;
+          rol: 'administrador' | 'visualizador';
+          activo: boolean;
+          ultimo_acceso: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          nombre_completo: string;
+          rol?: 'administrador' | 'visualizador';
+          activo?: boolean;
+          ultimo_acceso?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          nombre_completo?: string;
+          rol?: 'administrador' | 'visualizador';
+          activo?: boolean;
+          ultimo_acceso?: string | null;
+          updated_at?: string;
+        };
+      };
+      contactos: {
+        Row: {
+          id: string;
+          nombre: string;
+          apellidos: string;
+          email: string | null;
+          telefono: string;
+          empresa: string;
+          cargo: string;
+          direccion: string;
+          ciudad: string;
+          pais: string;
+          fecha_nacimiento: string | null;
+          genero: string;
+          estado: 'activo' | 'inactivo' | 'bloqueado';
+          puntuacion: number;
+          notas: string;
+          origen: string;
+          grupo_id: string | null;
+          etiquetas: string[];
+          campos_personalizados: any;
+          ultima_interaccion: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          apellidos?: string;
+          email?: string | null;
+          telefono?: string;
+          empresa?: string;
+          cargo?: string;
+          direccion?: string;
+          ciudad?: string;
+          pais?: string;
+          fecha_nacimiento?: string | null;
+          genero?: string;
+          estado?: 'activo' | 'inactivo' | 'bloqueado';
+          puntuacion?: number;
+          notas?: string;
+          origen?: string;
+          grupo_id?: string | null;
+          etiquetas?: string[];
+          campos_personalizados?: any;
+          ultima_interaccion?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          apellidos?: string;
+          email?: string | null;
+          telefono?: string;
+          empresa?: string;
+          cargo?: string;
+          direccion?: string;
+          ciudad?: string;
+          pais?: string;
+          fecha_nacimiento?: string | null;
+          genero?: string;
+          estado?: 'activo' | 'inactivo' | 'bloqueado';
+          puntuacion?: number;
+          notas?: string;
+          origen?: string;
+          grupo_id?: string | null;
+          etiquetas?: string[];
+          campos_personalizados?: any;
+          ultima_interaccion?: string | null;
+          updated_at?: string;
+        };
+      };
+      grupos: {
+        Row: {
+          id: string;
+          nombre: string;
+          descripcion: string;
+          color: string;
+          total_contactos: number;
+          activo: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          descripcion?: string;
+          color?: string;
+          total_contactos?: number;
+          activo?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          descripcion?: string;
+          color?: string;
+          total_contactos?: number;
+          activo?: boolean;
+          updated_at?: string;
+        };
+      };
+      etiquetas: {
+        Row: {
+          id: string;
+          nombre: string;
+          color: string;
+          descripcion: string;
+          activa: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          color?: string;
+          descripcion?: string;
+          activa?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          color?: string;
+          descripcion?: string;
+          activa?: boolean;
+          updated_at?: string;
+        };
+      };
+      listas: {
+        Row: {
+          id: string;
+          nombre: string;
+          descripcion: string;
+          tipo: 'estatica' | 'dinamica';
+          criterios: any;
+          total_contactos: number;
+          activa: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          descripcion?: string;
+          tipo?: 'estatica' | 'dinamica';
+          criterios?: any;
+          total_contactos?: number;
+          activa?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          descripcion?: string;
+          tipo?: 'estatica' | 'dinamica';
+          criterios?: any;
+          total_contactos?: number;
+          activa?: boolean;
+          updated_at?: string;
+        };
+      };
+      plantillas: {
+        Row: {
+          id: string;
+          nombre: string;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto: string;
+          contenido: string;
+          variables: any;
+          activa: boolean;
+          uso_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido: string;
+          variables?: any;
+          activa?: boolean;
+          uso_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          tipo?: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido?: string;
+          variables?: any;
+          activa?: boolean;
+          uso_count?: number;
+          updated_at?: string;
+        };
+      };
+      campanas: {
+        Row: {
+          id: string;
+          nombre: string;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto: string;
+          contenido: string;
+          plantilla_id: string | null;
+          estado: 'borrador' | 'programada' | 'enviando' | 'enviada' | 'pausada' | 'cancelada';
+          programada_para: string | null;
+          enviada_en: string | null;
+          total_destinatarios: number;
+          total_enviados: number;
+          total_entregados: number;
+          total_abiertos: number;
+          total_clicks: number;
+          total_respuestas: number;
+          total_errores: number;
+          configuracion: any;
+          listas_objetivo: string[];
+          grupos_objetivo: string[];
+          etiquetas_objetivo: string[];
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido: string;
+          plantilla_id?: string | null;
+          estado?: 'borrador' | 'programada' | 'enviando' | 'enviada' | 'pausada' | 'cancelada';
+          programada_para?: string | null;
+          enviada_en?: string | null;
+          total_destinatarios?: number;
+          total_enviados?: number;
+          total_entregados?: number;
+          total_abiertos?: number;
+          total_clicks?: number;
+          total_respuestas?: number;
+          total_errores?: number;
+          configuracion?: any;
+          listas_objetivo?: string[];
+          grupos_objetivo?: string[];
+          etiquetas_objetivo?: string[];
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          tipo?: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido?: string;
+          plantilla_id?: string | null;
+          estado?: 'borrador' | 'programada' | 'enviando' | 'enviada' | 'pausada' | 'cancelada';
+          programada_para?: string | null;
+          enviada_en?: string | null;
+          total_destinatarios?: number;
+          total_enviados?: number;
+          total_entregados?: number;
+          total_abiertos?: number;
+          total_clicks?: number;
+          total_respuestas?: number;
+          total_errores?: number;
+          configuracion?: any;
+          listas_objetivo?: string[];
+          grupos_objetivo?: string[];
+          etiquetas_objetivo?: string[];
+          updated_at?: string;
+        };
+      };
+      leads: {
+        Row: {
+          id: string;
+          nombre: string;
+          apellidos: string;
+          email: string | null;
+          telefono: string;
+          empresa: string;
+          cargo: string;
+          valor_estimado: number;
+          etapa: 'nuevo' | 'contactado' | 'calificado' | 'propuesta' | 'negociacion' | 'cerrado_ganado' | 'cerrado_perdido';
+          prioridad: 'baja' | 'media' | 'alta' | 'urgente';
+          origen: string;
+          asignado_a: string | null;
+          probabilidad: number;
+          fecha_cierre_estimada: string | null;
+          notas: string;
+          etiquetas: string[];
+          campos_personalizados: any;
+          contacto_id: string | null;
+          ultima_actividad: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          apellidos?: string;
+          email?: string | null;
+          telefono?: string;
+          empresa?: string;
+          cargo?: string;
+          valor_estimado?: number;
+          etapa?: 'nuevo' | 'contactado' | 'calificado' | 'propuesta' | 'negociacion' | 'cerrado_ganado' | 'cerrado_perdido';
+          prioridad?: 'baja' | 'media' | 'alta' | 'urgente';
+          origen?: string;
+          asignado_a?: string | null;
+          probabilidad?: number;
+          fecha_cierre_estimada?: string | null;
+          notas?: string;
+          etiquetas?: string[];
+          campos_personalizados?: any;
+          contacto_id?: string | null;
+          ultima_actividad?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          apellidos?: string;
+          email?: string | null;
+          telefono?: string;
+          empresa?: string;
+          cargo?: string;
+          valor_estimado?: number;
+          etapa?: 'nuevo' | 'contactado' | 'calificado' | 'propuesta' | 'negociacion' | 'cerrado_ganado' | 'cerrado_perdido';
+          prioridad?: 'baja' | 'media' | 'alta' | 'urgente';
+          origen?: string;
+          asignado_a?: string | null;
+          probabilidad?: number;
+          fecha_cierre_estimada?: string | null;
+          notas?: string;
+          etiquetas?: string[];
+          campos_personalizados?: any;
+          contacto_id?: string | null;
+          ultima_actividad?: string | null;
+          updated_at?: string;
+        };
+      };
+      mensajes: {
+        Row: {
+          id: string;
+          campana_id: string | null;
+          contacto_id: string | null;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto: string;
+          contenido: string;
+          estado: 'pendiente' | 'enviado' | 'entregado' | 'abierto' | 'error';
+          enviado_en: string | null;
+          entregado_en: string | null;
+          abierto_en: string | null;
+          click_en: string | null;
+          respondido_en: string | null;
+          error_mensaje: string;
+          metadatos: any;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          campana_id?: string | null;
+          contacto_id?: string | null;
+          tipo: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido: string;
+          estado?: 'pendiente' | 'enviado' | 'entregado' | 'abierto' | 'error';
+          enviado_en?: string | null;
+          entregado_en?: string | null;
+          abierto_en?: string | null;
+          click_en?: string | null;
+          respondido_en?: string | null;
+          error_mensaje?: string;
+          metadatos?: any;
+          created_at?: string;
+        };
+        Update: {
+          campana_id?: string | null;
+          contacto_id?: string | null;
+          tipo?: 'email' | 'whatsapp' | 'sms';
+          asunto?: string;
+          contenido?: string;
+          estado?: 'pendiente' | 'enviado' | 'entregado' | 'abierto' | 'error';
+          enviado_en?: string | null;
+          entregado_en?: string | null;
+          abierto_en?: string | null;
+          click_en?: string | null;
+          respondido_en?: string | null;
+          error_mensaje?: string;
+          metadatos?: any;
+        };
+      };
+      interacciones: {
+        Row: {
+          id: string;
+          tipo: string;
+          contacto_id: string | null;
+          lead_id: string | null;
+          campana_id: string | null;
+          mensaje_id: string | null;
+          usuario_id: string | null;
+          titulo: string;
+          descripcion: string;
+          fecha: string;
+          metadatos: any;
+        };
+        Insert: {
+          id?: string;
+          tipo: string;
+          contacto_id?: string | null;
+          lead_id?: string | null;
+          campana_id?: string | null;
+          mensaje_id?: string | null;
+          usuario_id?: string | null;
+          titulo: string;
+          descripcion?: string;
+          fecha?: string;
+          metadatos?: any;
+        };
+        Update: {
+          tipo?: string;
+          contacto_id?: string | null;
+          lead_id?: string | null;
+          campana_id?: string | null;
+          mensaje_id?: string | null;
+          usuario_id?: string | null;
+          titulo?: string;
+          descripcion?: string;
+          fecha?: string;
+          metadatos?: any;
+        };
+      };
+    };
+  };
+};
