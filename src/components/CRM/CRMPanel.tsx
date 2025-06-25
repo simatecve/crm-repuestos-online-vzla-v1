@@ -55,6 +55,7 @@ interface Message {
   metadata: any;
   created_at: string;
   instancia: string;
+  adjunto: string;
 }
 
 interface QuickReply {
@@ -215,6 +216,7 @@ export const CRMPanel: React.FC = () => {
       const { data, error } = await supabase
         .from('whatsapp_instances')
         .select('*')
+        .eq('status', 'connected')
         .order('name');
 
       if (error) throw error;
