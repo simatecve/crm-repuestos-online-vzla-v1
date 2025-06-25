@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, MessageSquare, TrendingUp, Target, Calendar, Mail, Phone, BarChart3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import StatCard from './StatCard';
+import { StatCard } from './StatCard';
 
 interface DashboardStats {
   totalContacts: number;
