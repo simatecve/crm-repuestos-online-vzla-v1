@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Save,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -202,31 +203,20 @@ export const WhatsAppInstancesManager: React.FC = () => {
           throw new Error(errorMessage);
         }
 
-        const responseData = await response.json();
-
         // Create the instance in Supabase
         const { data, error } = await supabase
           .from('whatsapp_instances')
           .insert([{
             name: newInstanceName.trim(),
             color: selectedColor,
-            status: 'connecting',
-            qr_code: responseData.qrCode || null,
+            status: 'disconnected',
             created_by: (await supabase.auth.getUser()).data.user?.id
           }])
           .select();
 
         if (error) throw error;
 
-        // Show QR code modal if available
-        if (data && data.length > 0 && responseData.qrCode) {
-          setSelectedInstance(data[0]);
-          setQrCode(responseData.qrCode);
-          setShowQrModal(true);
-        } else {
-          toast.success('Instancia creada correctamente');
-        }
-
+        toast.success('Instancia creada correctamente');
         setNewInstanceName('');
         setSelectedColor('#3B82F6');
         setActiveTab('instances');
