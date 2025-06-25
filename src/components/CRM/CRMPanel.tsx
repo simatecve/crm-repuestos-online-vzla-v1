@@ -21,9 +21,16 @@ import {
   Edit,
   X,
   Save,
-  Settings
+  Settings,
+  UserPlus,
+  Users,
+  User,
+  RefreshCw,
+  Shield
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useUserRole } from '../../hooks/useUserRole';
 import toast from 'react-hot-toast';
 
 interface Conversation {
@@ -39,6 +46,10 @@ interface Conversation {
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
+  assigned_to: string | null;
+  assigned_by: string | null;
+  assigned_at: string | null;
+  agent_id: string | null;
 }
 
 interface Message {
@@ -77,6 +88,24 @@ interface WhatsAppInstance {
   status: 'connected' | 'disconnected' | 'connecting';
 }
 
+interface AIAgent {
+  id: string;
+  name: string;
+  prompt: string;
+  instance_id: string;
+  instance_name: string;
+  is_active: boolean;
+}
+
+interface UserProfile {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  avatar_url: string | null;
+}
+
 const emojis = [
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
   '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
@@ -91,10 +120,14 @@ const emojis = [
 ];
 
 export const CRMPanel: React.FC = () => {
+  const { user } = useAuth();
+  const { isAdmin, isManager } = useUserRole();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
+  const [agents, setAgents] = useState<AIAgent[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -112,6 +145,9 @@ export const CRMPanel: React.FC = () => {
     category: 'general'
   });
   const [editingQuickReply, setEditingQuickReply] = useState<QuickReply | null>(null);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [filterAssigned, setFilterAssigned] = useState<string | null>(null);
+  const [filterUnassigned, setFilterUnassigned] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +158,8 @@ export const CRMPanel: React.FC = () => {
     fetchConversations();
     fetchQuickReplies();
     fetchInstances();
+    fetchAgents();
+    fetchUsers();
 
     // Set up real-time subscription for conversations
     const conversationsSubscription = supabase
@@ -137,7 +175,7 @@ export const CRMPanel: React.FC = () => {
     return () => {
       supabase.removeChannel(conversationsSubscription);
     };
-  }, []);
+  }, [user?.id, filterAssigned, filterUnassigned]);
 
   useEffect(() => {
     if (selectedConversation) {
@@ -192,10 +230,25 @@ export const CRMPanel: React.FC = () => {
   const fetchConversations = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('conversations')
         .select('*')
         .order('updated_at', { ascending: false });
+      
+      // Apply filters based on user role and selected filters
+      if (!isAdmin && !isManager) {
+        // Regular users can only see conversations assigned to them
+        query = query.eq('assigned_to', user?.id);
+      } else if (filterAssigned) {
+        // Filter by specific assignee
+        query = query.eq('assigned_to', filterAssigned);
+      } else if (filterUnassigned) {
+        // Filter unassigned conversations
+        query = query.is('assigned_to', null);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setConversations(data || []);
@@ -258,6 +311,36 @@ export const CRMPanel: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching instances:', error);
+    }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ai_agents')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setAgents(data || []);
+    } catch (error) {
+      console.error('Error fetching AI agents:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
     }
   };
 
@@ -461,6 +544,25 @@ export const CRMPanel: React.FC = () => {
     setShowQuickReplyForm(true);
   };
 
+  const assignConversation = async (conversationId: string, userId: string | null, agentId: string | null) => {
+    try {
+      const { error } = await supabase.rpc('assign_conversation', {
+        conversation_id: conversationId,
+        user_id: userId,
+        agent_id: agentId
+      });
+
+      if (error) throw error;
+
+      toast.success('Conversación asignada correctamente');
+      fetchConversations();
+      setShowAssignmentModal(false);
+    } catch (error) {
+      console.error('Error assigning conversation:', error);
+      toast.error('Error al asignar la conversación');
+    }
+  };
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -515,6 +617,23 @@ export const CRMPanel: React.FC = () => {
   const getInstanceColor = (instanceName: string) => {
     const instance = instances.find(i => i.name === instanceName);
     return instance?.color || '#3B82F6';
+  };
+
+  const getAssignedUserName = (userId: string | null) => {
+    if (!userId) return 'Sin asignar';
+    const user = users.find(u => u.user_id === userId);
+    return user ? user.full_name : 'Usuario desconocido';
+  };
+
+  const getAssignedAgentName = (agentId: string | null) => {
+    if (!agentId) return null;
+    const agent = agents.find(a => a.id === agentId);
+    return agent ? agent.name : null;
+  };
+
+  const canViewConversation = (conversation: Conversation) => {
+    if (isAdmin || isManager) return true;
+    return conversation.assigned_to === user?.id || conversation.assigned_to === null;
   };
 
   if (loading) {
@@ -589,6 +708,28 @@ export const CRMPanel: React.FC = () => {
                   </div>
                 )}
               </button>
+              <button 
+                onClick={() => setFilterUnassigned(!filterUnassigned)}
+                className={`p-2 rounded-full transition-colors ${
+                  filterUnassigned ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 text-gray-600'
+                }`}
+                title="Mostrar solo conversaciones sin asignar"
+              >
+                <UserPlus className="w-5 h-5" />
+              </button>
+              {(isAdmin || isManager) && (
+                <div className="relative">
+                  <button 
+                    onClick={() => setFilterAssigned(filterAssigned ? null : user?.id)}
+                    className={`p-2 rounded-full transition-colors ${
+                      filterAssigned ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                    title="Filtrar por agente"
+                  >
+                    <Users className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
               <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                 <MoreVertical className="w-5 h-5 text-gray-600" />
               </button>
@@ -610,63 +751,81 @@ export const CRMPanel: React.FC = () => {
 
         {/* Lista de conversaciones */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => setSelectedConversation(conversation)}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                selectedConversation?.id === conversation.id ? 'bg-green-50 border-r-4 border-r-green-500' : ''
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                {/* Avatar */}
-                <div className="relative">
-                  {conversation.avatar_url ? (
-                    <img 
-                      src={conversation.avatar_url} 
-                      alt={conversation.contact_name || conversation.pushname || 'Avatar'}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center">
-                      <span className="text-lg font-medium text-gray-600">
-                        {(conversation.contact_name || conversation.pushname || conversation.phone_number).charAt(0)}
+          {filteredConversations.length > 0 ? (
+            filteredConversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                onClick={() => canViewConversation(conversation) ? setSelectedConversation(conversation) : null}
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedConversation?.id === conversation.id ? 'bg-green-50 border-r-4 border-r-green-500' : ''
+                } ${!canViewConversation(conversation) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center space-x-3">
+                  {/* Avatar */}
+                  <div className="relative">
+                    {conversation.avatar_url ? (
+                      <img 
+                        src={conversation.avatar_url} 
+                        alt={conversation.contact_name || conversation.pushname || 'Avatar'}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center">
+                        <span className="text-sm font-medium text-gray-600">
+                          {(conversation.contact_name || conversation.pushname || conversation.phone_number).charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                    {conversation.unread_count > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {conversation.unread_count}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Información de la conversación */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-gray-900 truncate">
+                        {conversation.contact_name || conversation.pushname || conversation.phone_number}
+                      </h3>
+                      <span className="text-xs text-gray-500">
+                        {conversation.last_message_time && formatTime(conversation.last_message_time)}
                       </span>
                     </div>
-                  )}
-                  {conversation.unread_count > 0 && (
-                    <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {conversation.unread_count}
-                    </div>
-                  )}
-                </div>
-
-                {/* Información de la conversación */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900 truncate">
-                      {conversation.contact_name || conversation.pushname || conversation.phone_number}
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                      {conversation.last_message_time && formatTime(conversation.last_message_time)}
-                    </span>
+                    <p className="text-sm text-gray-600 truncate mt-1">
+                      {conversation.last_message || 'Sin mensajes'}
+                    </p>
+                    
+                    {/* Assignment info */}
+                    {(conversation.assigned_to || conversation.agent_id) && (
+                      <div className="flex items-center mt-1">
+                        {conversation.assigned_to && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-1">
+                            <User className="w-3 h-3 mr-1" />
+                            {getAssignedUserName(conversation.assigned_to)}
+                          </span>
+                        )}
+                        {conversation.agent_id && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            <Zap className="w-3 h-3 mr-1" />
+                            {getAssignedAgentName(conversation.agent_id)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-600 truncate mt-1">
-                    {conversation.last_message || 'Sin mensajes'}
-                  </p>
-                </div>
 
-                {/* Indicadores */}
-                <div className="flex flex-col items-end space-y-1">
-                  {conversation.is_pinned && (
-                    <Pin className="w-4 h-4 text-gray-400" />
-                  )}
+                  {/* Indicadores */}
+                  <div className="flex flex-col items-end space-y-1">
+                    {conversation.is_pinned && (
+                      <Pin className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-
-          {filteredConversations.length === 0 && (
+            ))
+          ) : (
             <div className="p-8 text-center">
               <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No hay conversaciones</h3>
@@ -702,11 +861,26 @@ export const CRMPanel: React.FC = () => {
                   <h3 className="font-medium text-gray-900">
                     {selectedConversation.contact_name || selectedConversation.pushname || selectedConversation.phone_number}
                   </h3>
-                  <p className="text-sm text-gray-500">{selectedConversation.phone_number}</p>
+                  <div className="flex items-center">
+                    <p className="text-sm text-gray-500 mr-2">{selectedConversation.phone_number}</p>
+                    {selectedConversation.assigned_to && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <User className="w-3 h-3 mr-1" />
+                        {getAssignedUserName(selectedConversation.assigned_to)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               
               <div className="flex items-center space-x-2">
+                <button 
+                  onClick={() => setShowAssignmentModal(true)}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                  title="Asignar conversación"
+                >
+                  <UserPlus className="w-5 h-5 text-gray-600" />
+                </button>
                 <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                   <Phone className="w-5 h-5 text-gray-600" />
                 </button>
@@ -1005,6 +1179,111 @@ export const CRMPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Assignment Modal */}
+      {showAssignmentModal && selectedConversation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Asignar Conversación</h2>
+              <button
+                onClick={() => setShowAssignmentModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Asignar a Usuario</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <button
+                    onClick={() => assignConversation(selectedConversation.id, null, null)}
+                    className={`w-full text-left px-3 py-2 rounded-lg border ${
+                      !selectedConversation.assigned_to ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                        <User className="w-4 h-4 text-gray-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">Sin asignar</p>
+                        <p className="text-xs text-gray-500">Disponible para cualquier agente</p>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {users.map(user => (
+                    <button
+                      key={user.id}
+                      onClick={() => assignConversation(selectedConversation.id, user.user_id, null)}
+                      className={`w-full text-left px-3 py-2 rounded-lg border ${
+                        selectedConversation.assigned_to === user.user_id ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                          {user.role === 'admin' ? (
+                            <Shield className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <User className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Asignar a Agente IA</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {agents.length > 0 ? (
+                    agents.map(agent => (
+                      <button
+                        key={agent.id}
+                        onClick={() => assignConversation(selectedConversation.id, null, agent.id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg border ${
+                          selectedConversation.agent_id === agent.id ? 'bg-purple-50 border-purple-300' : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                            <Zap className="w-4 h-4 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{agent.name}</p>
+                            <p className="text-xs text-gray-500">Agente IA - {agent.instance_name}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">No hay agentes IA disponibles</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowAssignmentModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
