@@ -12,7 +12,8 @@ import {
   Check,
   Edit,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  MessageSquare
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -36,10 +37,16 @@ interface WhatsAppInstance {
   status: 'connected' | 'disconnected' | 'connecting';
 }
 
+interface ConversationStat {
+  agent_id: string;
+  count: string;
+}
+
 export const AIAgentManager: React.FC = () => {
   const { canEdit, canCreate, canDelete, loading: roleLoading } = useUserRole();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
+  const [conversationStats, setConversationStats] = useState<ConversationStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'agents' | 'new' | 'edit'>('agents');
@@ -72,7 +79,8 @@ export const AIAgentManager: React.FC = () => {
       setLoading(true);
       await Promise.all([
         fetchAgents(),
-        fetchInstances()
+        fetchInstances(),
+        fetchConversationStats()
       ]);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -129,6 +137,21 @@ export const AIAgentManager: React.FC = () => {
     } catch (error) {
       console.error('Error fetching instances:', error);
       throw error;
+    }
+  };
+
+  const fetchConversationStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('agent_id, count(*)')
+        .not('agent_id', 'is', null)
+        .group('agent_id');
+
+      if (error) throw error;
+      setConversationStats(data || []);
+    } catch (error) {
+      console.error('Error fetching conversation stats:', error);
     }
   };
 
@@ -221,6 +244,22 @@ export const AIAgentManager: React.FC = () => {
     }
 
     try {
+      // Check if agent has assigned conversations
+      const agentStats = conversationStats.find(stat => stat.agent_id === agentId);
+      if (agentStats && parseInt(agentStats.count) > 0) {
+        if (!confirm(`Este agente tiene ${agentStats.count} conversaciones asignadas. ¿Deseas continuar?`)) {
+          return;
+        }
+        
+        // Update conversations to remove agent assignment
+        const { error: updateError } = await supabase
+          .from('conversations')
+          .update({ agent_id: null })
+          .eq('agent_id', agentId);
+          
+        if (updateError) throw updateError;
+      }
+
       const { error } = await supabase
         .from('ai_agents')
         .delete()
@@ -230,6 +269,7 @@ export const AIAgentManager: React.FC = () => {
 
       toast.success('Agente eliminado correctamente');
       fetchAgents();
+      fetchConversationStats();
     } catch (error) {
       console.error('Error deleting agent:', error);
       toast.error('Error al eliminar el agente');
@@ -277,6 +317,11 @@ export const AIAgentManager: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getConversationCount = (agentId: string) => {
+    const stat = conversationStats.find(s => s.agent_id === agentId);
+    return stat ? parseInt(stat.count) : 0;
   };
 
   const filteredAgents = agents.filter(agent =>
@@ -435,6 +480,10 @@ export const AIAgentManager: React.FC = () => {
                                 </span>
                                 <span className="text-xs text-gray-500 ml-3">
                                   Creado: {formatDate(agent.created_at)}
+                                </span>
+                                <span className="inline-flex items-center ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  <MessageSquare className="w-3 h-3 mr-1" />
+                                  {getConversationCount(agent.id)} conversaciones
                                 </span>
                               </div>
                             </div>
