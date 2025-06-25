@@ -20,7 +20,8 @@ import {
   Plus,
   Edit,
   X,
-  Save
+  Save,
+  Settings
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -53,6 +54,7 @@ interface Message {
   is_read: boolean;
   metadata: any;
   created_at: string;
+  instancia: string;
 }
 
 interface QuickReply {
@@ -65,6 +67,13 @@ interface QuickReply {
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+interface WhatsAppInstance {
+  id: string;
+  name: string;
+  color: string;
+  status: 'connected' | 'disconnected' | 'connecting';
 }
 
 const emojis = [
@@ -84,6 +93,7 @@ export const CRMPanel: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -93,6 +103,8 @@ export const CRMPanel: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showQuickReplyForm, setShowQuickReplyForm] = useState(false);
+  const [showInstanceSelector, setShowInstanceSelector] = useState(false);
+  const [selectedInstance, setSelectedInstance] = useState<string>('default');
   const [newQuickReply, setNewQuickReply] = useState({
     title: '',
     content: '',
@@ -103,10 +115,12 @@ export const CRMPanel: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const quickRepliesRef = useRef<HTMLDivElement>(null);
+  const instanceSelectorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchConversations();
     fetchQuickReplies();
+    fetchInstances();
   }, []);
 
   useEffect(() => {
@@ -121,13 +135,16 @@ export const CRMPanel: React.FC = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Cerrar el selector de emojis al hacer clic fuera
+    // Cerrar los selectores al hacer clic fuera
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
         setShowEmojis(false);
       }
       if (quickRepliesRef.current && !quickRepliesRef.current.contains(event.target as Node)) {
         setShowQuickReplies(false);
+      }
+      if (instanceSelectorRef.current && !instanceSelectorRef.current.contains(event.target as Node)) {
+        setShowInstanceSelector(false);
       }
     };
 
@@ -193,6 +210,25 @@ export const CRMPanel: React.FC = () => {
     }
   };
 
+  const fetchInstances = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_instances')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setInstances(data || []);
+      
+      // Set default instance if available
+      if (data && data.length > 0) {
+        setSelectedInstance(data[0].name);
+      }
+    } catch (error) {
+      console.error('Error fetching instances:', error);
+    }
+  };
+
   const markAsRead = async (phoneNumber: string) => {
     try {
       const { error } = await supabase.rpc('mark_messages_as_read', {
@@ -228,7 +264,8 @@ export const CRMPanel: React.FC = () => {
           message_content: newMessage.trim(),
           direction: 'sent',
           status: 'sent',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          instancia: selectedInstance
         }]);
 
       if (error) throw error;
@@ -384,6 +421,11 @@ export const CRMPanel: React.FC = () => {
     return acc;
   }, {} as Record<string, QuickReply[]>);
 
+  const getInstanceColor = (instanceName: string) => {
+    const instance = instances.find(i => i.name === instanceName);
+    return instance?.color || '#3B82F6';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -401,6 +443,61 @@ export const CRMPanel: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Conversaciones</h2>
             <div className="flex space-x-2">
+              <button 
+                onClick={() => setShowInstanceSelector(!showInstanceSelector)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors relative"
+              >
+                <Settings className="w-5 h-5 text-gray-600" />
+                
+                {/* Instancia seleccionada */}
+                {instances.length > 0 && (
+                  <span 
+                    className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
+                    style={{ backgroundColor: getInstanceColor(selectedInstance) }}
+                  ></span>
+                )}
+                
+                {/* Selector de instancias */}
+                {showInstanceSelector && (
+                  <div 
+                    ref={instanceSelectorRef}
+                    className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-48 z-10"
+                  >
+                    <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 py-1">
+                      Instancias
+                    </h4>
+                    <div className="mt-1 space-y-1 max-h-48 overflow-y-auto">
+                      {instances.length > 0 ? (
+                        instances.map((instance) => (
+                          <button
+                            key={instance.id}
+                            onClick={() => {
+                              setSelectedInstance(instance.name);
+                              setShowInstanceSelector(false);
+                            }}
+                            className={`w-full text-left px-2 py-1 rounded text-sm flex items-center space-x-2 ${
+                              selectedInstance === instance.name ? 'bg-gray-100' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <span 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: instance.color }}
+                            ></span>
+                            <span className="truncate">{instance.name}</span>
+                            {selectedInstance === instance.name && (
+                              <Check className="w-4 h-4 ml-auto text-green-500" />
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500 px-2 py-1">
+                          No hay instancias
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </button>
               <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                 <MoreVertical className="w-5 h-5 text-gray-600" />
               </button>
@@ -550,6 +647,18 @@ export const CRMPanel: React.FC = () => {
                           : 'bg-white text-gray-900 shadow-sm'
                       }`}
                     >
+                      {/* Instancia indicator */}
+                      {message.instancia && message.instancia !== 'default' && (
+                        <div 
+                          className="w-2 h-2 rounded-full mb-1 ml-auto"
+                          style={{ 
+                            backgroundColor: getInstanceColor(message.instancia),
+                            marginLeft: 'auto',
+                            marginRight: message.direction === 'sent' ? '0' : 'auto'
+                          }}
+                        ></div>
+                      )}
+                      
                       <p className="text-sm">{message.message_content}</p>
                       <div className={`flex items-center justify-end space-x-1 mt-1 ${
                         message.direction === 'sent' ? 'text-green-100' : 'text-gray-500'

@@ -13,10 +13,12 @@ import {
   Zap,
   Target,
   List,
-  ChevronRight
+  ChevronRight,
+  Smartphone
 } from 'lucide-react';
 import { LeadScoringPanel } from '../Leads/LeadScoringPanel';
 import { CustomFieldsManager } from '../Leads/CustomFieldsManager';
+import { WhatsAppInstancesManager } from './WhatsAppInstancesManager';
 
 export const SettingsPanel: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -48,9 +50,9 @@ export const SettingsPanel: React.FC = () => {
     },
     {
       id: 'whatsapp',
-      title: 'Configuración de WhatsApp',
-      icon: MessageSquare,
-      description: 'Conecta y gestiona tus cuentas de WhatsApp Business'
+      title: 'Instancias de WhatsApp',
+      icon: Smartphone,
+      description: 'Gestiona tus instancias de WhatsApp Business'
     },
     {
       id: 'database',
@@ -102,6 +104,8 @@ export const SettingsPanel: React.FC = () => {
         return <CustomFieldsManager />;
       case 'lead_scoring':
         return <LeadScoringPanel />;
+      case 'whatsapp':
+        return <WhatsAppInstancesManager />;
       default:
         return (
           <div className="text-center py-12">
