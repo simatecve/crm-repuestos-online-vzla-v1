@@ -103,9 +103,9 @@ export const CRMPanel: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
-  const [showQuickReplyForm, setShowQuickReplyForm] = useState(false);
   const [showInstanceSelector, setShowInstanceSelector] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<string>('default');
+  const [showQuickReplyForm, setShowQuickReplyForm] = useState(false);
   const [newQuickReply, setNewQuickReply] = useState({
     title: '',
     content: '',

@@ -51,11 +51,13 @@ export const AIAgentManager: React.FC = () => {
     name: string;
     prompt: string;
     instance_id: string;
+    instance_name: string;
     is_active: boolean;
   }>({
     name: '',
     prompt: '',
     instance_id: '',
+    instance_name: '',
     is_active: true
   });
   
@@ -95,7 +97,7 @@ export const AIAgentManager: React.FC = () => {
       // Format the data to include instance_name
       const formattedData = data?.map(agent => ({
         ...agent,
-        instance_name: agent.whatsapp_instances?.name || 'Desconocida'
+        instance_name: agent.instance_name || agent.whatsapp_instances?.name || 'Desconocida'
       })) || [];
       
       setAgents(formattedData);
@@ -120,7 +122,8 @@ export const AIAgentManager: React.FC = () => {
       if (data && data.length > 0 && !formData.id) {
         setFormData(prev => ({
           ...prev,
-          instance_id: data[0].id
+          instance_id: data[0].id,
+          instance_name: data[0].name
         }));
       }
     } catch (error) {
@@ -147,6 +150,10 @@ export const AIAgentManager: React.FC = () => {
     try {
       setSaving(true);
 
+      // Find the selected instance to get its name
+      const selectedInstance = instances.find(instance => instance.id === formData.instance_id);
+      const instanceName = selectedInstance?.name || '';
+
       if (formData.id) {
         // Update existing agent
         const { error } = await supabase
@@ -155,6 +162,7 @@ export const AIAgentManager: React.FC = () => {
             name: formData.name.trim(),
             prompt: formData.prompt.trim(),
             instance_id: formData.instance_id,
+            instance_name: instanceName,
             is_active: formData.is_active
           })
           .eq('id', formData.id);
@@ -169,6 +177,7 @@ export const AIAgentManager: React.FC = () => {
             name: formData.name.trim(),
             prompt: formData.prompt.trim(),
             instance_id: formData.instance_id,
+            instance_name: instanceName,
             is_active: formData.is_active
           }]);
 
@@ -181,6 +190,7 @@ export const AIAgentManager: React.FC = () => {
         name: '',
         prompt: '',
         instance_id: instances.length > 0 ? instances[0].id : '',
+        instance_name: instances.length > 0 ? instances[0].name : '',
         is_active: true
       });
       setActiveTab('agents');
@@ -199,6 +209,7 @@ export const AIAgentManager: React.FC = () => {
       name: agent.name,
       prompt: agent.prompt,
       instance_id: agent.instance_id,
+      instance_name: agent.instance_name,
       is_active: agent.is_active
     });
     setActiveTab('edit');
@@ -249,6 +260,15 @@ export const AIAgentManager: React.FC = () => {
     }
   };
 
+  const handleInstanceChange = (instanceId: string) => {
+    const selectedInstance = instances.find(instance => instance.id === instanceId);
+    setFormData({
+      ...formData,
+      instance_id: instanceId,
+      instance_name: selectedInstance?.name || ''
+    });
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -297,6 +317,7 @@ export const AIAgentManager: React.FC = () => {
                 name: '',
                 prompt: '',
                 instance_id: instances.length > 0 ? instances[0].id : '',
+                instance_name: instances.length > 0 ? instances[0].name : '',
                 is_active: true
               });
               setActiveTab('new');
@@ -346,6 +367,7 @@ export const AIAgentManager: React.FC = () => {
                   name: '',
                   prompt: '',
                   instance_id: instances.length > 0 ? instances[0].id : '',
+                  instance_name: instances.length > 0 ? instances[0].name : '',
                   is_active: true
                 });
                 setActiveTab('new');
@@ -477,6 +499,7 @@ export const AIAgentManager: React.FC = () => {
                           name: '',
                           prompt: '',
                           instance_id: instances.length > 0 ? instances[0].id : '',
+                          instance_name: instances.length > 0 ? instances[0].name : '',
                           is_active: true
                         });
                         setActiveTab('new');
@@ -536,7 +559,7 @@ export const AIAgentManager: React.FC = () => {
                   <select
                     id="agent-instance"
                     value={formData.instance_id}
-                    onChange={(e) => setFormData({ ...formData, instance_id: e.target.value })}
+                    onChange={(e) => handleInstanceChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
