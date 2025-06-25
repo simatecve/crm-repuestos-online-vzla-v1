@@ -281,8 +281,17 @@ export const CRMPanel: React.FC = () => {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error sending message via API');
+        let errorMessage = 'Error sending message via API';
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (jsonError) {
+          // If response is not JSON, use status text or generic message
+          errorMessage = response.statusText || `HTTP ${response.status}: ${errorMessage}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // Save message to database
