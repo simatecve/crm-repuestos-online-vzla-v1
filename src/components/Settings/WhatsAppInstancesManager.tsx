@@ -485,10 +485,19 @@ export const WhatsAppInstancesManager: React.FC = () => {
           responseData = { status: responseText.trim() };
         }
 
-        // Validate status value
-        const validStatuses = ['connected', 'disconnected', 'connecting'];
-        const status = responseData.status || 'disconnected';
-        const finalStatus = validStatuses.includes(status) ? status : 'disconnected';
+        // Check for connectionStatus:open in the response
+        let finalStatus = 'disconnected';
+        
+        if (responseData.connectionStatus === 'open') {
+          finalStatus = 'connected';
+        } else if (responseData.status === 'connected' || responseData.status === 'open') {
+          finalStatus = 'connected';
+        } else {
+          // Validate status value from other response formats
+          const validStatuses = ['connected', 'disconnected', 'connecting'];
+          const status = responseData.status || 'disconnected';
+          finalStatus = validStatuses.includes(status) ? status : 'disconnected';
+        }
 
         // Update instance status
         const { error } = await supabase
@@ -506,7 +515,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
         setQrCode(null);
         fetchInstances();
         
-        toast.success('Estado actualizado correctamente');
+        toast.success(`Estado actualizado: ${getStatusText(finalStatus)}`);
       } catch (fetchError) {
         clearTimeout(timeoutId);
         
