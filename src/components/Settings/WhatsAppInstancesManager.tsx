@@ -337,29 +337,24 @@ export const WhatsAppInstancesManager: React.FC = () => {
 
         clearTimeout(timeoutId);
 
+        // Read response as text first to handle empty responses
+        const responseText = await response.text();
+        
         if (!response.ok) {
           let errorMessage = 'Error del servidor';
-          try {
-            const responseText = await response.text();
-            if (responseText) {
-              try {
-                const errorData = JSON.parse(responseText);
-                errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
-              } catch {
-                errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-              }
-            } else {
-              errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          if (responseText) {
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+            } catch {
+              errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
             }
-          } catch {
+          } else {
             errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           }
           throw new Error(errorMessage);
         }
 
-        // Read response as text first to handle empty responses
-        const responseText = await response.text();
-        
         if (!responseText || responseText.trim() === '') {
           throw new Error('El servidor devolvió una respuesta vacía');
         }
@@ -457,24 +452,49 @@ export const WhatsAppInstancesManager: React.FC = () => {
 
         clearTimeout(timeoutId);
 
+        // Read response as text first to handle empty responses
+        const responseText = await response.text();
+
         if (!response.ok) {
           let errorMessage = 'Error del servidor';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
-          } catch {
+          if (responseText) {
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+            } catch {
+              // If it's not JSON, use the raw text as error message
+              errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+            }
+          } else {
             errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           }
           throw new Error(errorMessage);
         }
 
-        const responseData = await response.json();
+        // Handle empty response
+        if (!responseText || responseText.trim() === '') {
+          throw new Error('El servidor devolvió una respuesta vacía');
+        }
+
+        // Try to parse as JSON
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (parseError) {
+          // If it's not JSON, treat it as a status string
+          responseData = { status: responseText.trim() };
+        }
+
+        // Validate status value
+        const validStatuses = ['connected', 'disconnected', 'connecting'];
+        const status = responseData.status || 'disconnected';
+        const finalStatus = validStatuses.includes(status) ? status : 'disconnected';
 
         // Update instance status
         const { error } = await supabase
           .from('whatsapp_instances')
           .update({ 
-            status: responseData.status || 'disconnected'
+            status: finalStatus
           })
           .eq('id', selectedInstance.id);
 
@@ -904,7 +924,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
                   Escanea este código QR con tu WhatsApp
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Abre WhatsApp en tu teléfono, ve a Configuración &gt; Dispositivos vinculados &gt; Vincular un dispositivo
+                  Abre WhatsApp en tu teléfono, ve a Configuración > Dispositivos vinculados > Vincular un dispositivo
                 </p>
                 
                 {qrCode && (
