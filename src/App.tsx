@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginForm } from './components/Auth/LoginForm';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
-import { Dashboard } from './components/Dashboard/Dashboard';
+import Dashboard from './components/Dashboard/Dashboard';
 import { KanbanBoard } from './components/Leads/KanbanBoard';
 import { ContactsManager } from './components/Contacts/ContactsManager';
 import { CampaignsManager } from './components/Campaigns/CampaignsManager';
