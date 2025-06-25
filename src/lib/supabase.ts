@@ -390,6 +390,7 @@ export type Database = {
           created_at: string;
           instancia: string;
           adjunto: string | null;
+          conversation_id: string | null;
         };
         Insert: {
           id?: string;
@@ -405,6 +406,7 @@ export type Database = {
           created_at?: string;
           instancia?: string;
           adjunto?: string | null;
+          conversation_id?: string | null;
         };
         Update: {
           phone_number?: string;
@@ -418,6 +420,7 @@ export type Database = {
           metadata?: any;
           instancia?: string;
           adjunto?: string | null;
+          conversation_id?: string | null;
         };
       };
       conversations: {
