@@ -14,11 +14,13 @@ import {
   Target,
   List,
   ChevronRight,
-  Smartphone
+  Smartphone,
+  Brain
 } from 'lucide-react';
 import { LeadScoringPanel } from '../Leads/LeadScoringPanel';
 import { CustomFieldsManager } from '../Leads/CustomFieldsManager';
 import { WhatsAppInstancesManager } from './WhatsAppInstancesManager';
+import { AIAgentManager } from './AIAgentManager';
 
 export const SettingsPanel: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -53,6 +55,12 @@ export const SettingsPanel: React.FC = () => {
       title: 'Instancias de WhatsApp',
       icon: Smartphone,
       description: 'Gestiona tus instancias de WhatsApp Business'
+    },
+    {
+      id: 'ai_agents',
+      title: 'Agentes de IA',
+      icon: Brain,
+      description: 'Configura agentes de inteligencia artificial para WhatsApp'
     },
     {
       id: 'database',
@@ -106,6 +114,8 @@ export const SettingsPanel: React.FC = () => {
         return <LeadScoringPanel />;
       case 'whatsapp':
         return <WhatsAppInstancesManager />;
+      case 'ai_agents':
+        return <AIAgentManager />;
       default:
         return (
           <div className="text-center py-12">
