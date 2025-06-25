@@ -122,12 +122,42 @@ export const CRMPanel: React.FC = () => {
     fetchConversations();
     fetchQuickReplies();
     fetchInstances();
+
+    // Set up real-time subscription for conversations
+    const conversationsSubscription = supabase
+      .channel('conversations-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'conversations' }, 
+        () => {
+          fetchConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(conversationsSubscription);
+    };
   }, []);
 
   useEffect(() => {
     if (selectedConversation) {
       fetchMessages(selectedConversation.phone_number);
       markAsRead(selectedConversation.phone_number);
+
+      // Set up real-time subscription for messages
+      const messagesSubscription = supabase
+        .channel('messages-changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'messages', filter: `phone_number=eq.${selectedConversation.phone_number}` }, 
+          () => {
+            fetchMessages(selectedConversation.phone_number);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(messagesSubscription);
+      };
     }
   }, [selectedConversation]);
 
