@@ -43,7 +43,6 @@ interface Conversation {
 
 interface Message {
   id: string;
-  conversation_id: string;
   phone_number: string;
   pushname: string | null;
   message_content: string;
@@ -55,7 +54,8 @@ interface Message {
   metadata: any;
   created_at: string;
   instancia: string;
-  adjunto: string;
+  adjunto: string | null;
+  conversation_id: string | null;
 }
 
 interface QuickReply {
@@ -126,7 +126,7 @@ export const CRMPanel: React.FC = () => {
 
   useEffect(() => {
     if (selectedConversation) {
-      fetchMessages(selectedConversation.id);
+      fetchMessages(selectedConversation.phone_number);
       markAsRead(selectedConversation.phone_number);
     }
   }, [selectedConversation]);
@@ -177,13 +177,13 @@ export const CRMPanel: React.FC = () => {
     }
   };
 
-  const fetchMessages = async (conversationId: string) => {
+  const fetchMessages = async (phoneNumber: string) => {
     try {
       setMessagesLoading(true);
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('conversation_id', conversationId)
+        .eq('phone_number', phoneNumber)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
@@ -260,7 +260,6 @@ export const CRMPanel: React.FC = () => {
       const { error } = await supabase
         .from('messages')
         .insert([{
-          conversation_id: selectedConversation.id,
           phone_number: selectedConversation.phone_number,
           pushname: 'Yo',
           message_content: newMessage.trim(),
@@ -273,7 +272,7 @@ export const CRMPanel: React.FC = () => {
       if (error) throw error;
 
       setNewMessage('');
-      fetchMessages(selectedConversation.id);
+      fetchMessages(selectedConversation.phone_number);
       fetchConversations();
     } catch (error) {
       console.error('Error sending message:', error);
