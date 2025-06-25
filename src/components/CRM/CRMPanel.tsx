@@ -257,6 +257,35 @@ export const CRMPanel: React.FC = () => {
 
     try {
       setSending(true);
+      
+      // Format the phone number (remove any non-numeric characters except the + sign)
+      const formattedPhone = selectedConversation.phone_number.replace(/[^\d+]/g, '');
+      
+      // Send message via API
+      const apiUrl = `https://api.repuestosonline.com.ve/message/sendText/${selectedInstance}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': '429683C4C977415CAAFCCE10F7D57E11'
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: newMessage.trim(),
+          delay: 0,
+          linkPreview: true,
+          mentionsEveryOne: false,
+          mentioned: []
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error sending message via API');
+      }
+      
+      // Save message to database
       const { error } = await supabase
         .from('messages')
         .insert([{
@@ -274,9 +303,31 @@ export const CRMPanel: React.FC = () => {
       setNewMessage('');
       fetchMessages(selectedConversation.phone_number);
       fetchConversations();
+      toast.success('Mensaje enviado correctamente');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Error al enviar el mensaje');
+      
+      // Still save to database but mark as failed
+      if (selectedConversation) {
+        try {
+          await supabase
+            .from('messages')
+            .insert([{
+              phone_number: selectedConversation.phone_number,
+              pushname: 'Yo',
+              message_content: newMessage.trim(),
+              direction: 'sent',
+              status: 'failed',
+              timestamp: new Date().toISOString(),
+              instancia: selectedInstance
+            }]);
+            
+          fetchMessages(selectedConversation.phone_number);
+        } catch (dbError) {
+          console.error('Error saving failed message to database:', dbError);
+        }
+      }
     } finally {
       setSending(false);
     }
