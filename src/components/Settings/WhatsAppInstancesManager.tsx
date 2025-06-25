@@ -924,7 +924,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
                   Escanea este código QR con tu WhatsApp
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Abre WhatsApp en tu teléfono, ve a Configuración > Dispositivos vinculados > Vincular un dispositivo
+                  Abre WhatsApp en tu teléfono, ve a Configuración &gt; Dispositivos vinculados &gt; Vincular un dispositivo
                 </p>
                 
                 {qrCode && (
