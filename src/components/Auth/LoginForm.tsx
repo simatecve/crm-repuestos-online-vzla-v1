@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, AlertCircle, Shield, Eye } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, Shield, Eye, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -7,7 +7,8 @@ export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [showRegister, setShowRegister] = useState(false);
+  const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,15 +21,53 @@ export const LoginForm: React.FC = () => {
     setLoading(true);
     
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        toast.error('Credenciales incorrectas');
+      if (showRegister) {
+        const { error } = await signUp(email, password);
+        
+        if (error) {
+          toast.error(error.message || 'Error al crear la cuenta');
+        } else {
+          toast.success('¡Cuenta creada exitosamente! Ya puedes iniciar sesión.');
+          setShowRegister(false);
+        }
       } else {
-        toast.success('¡Bienvenido al sistema!');
+        const { error } = await signIn(email, password);
+        
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            toast.error('Credenciales incorrectas. ¿Necesitas crear una cuenta?');
+          } else {
+            toast.error(error.message || 'Error al iniciar sesión');
+          }
+        } else {
+          toast.success('¡Bienvenido al sistema!');
+        }
       }
     } catch (error) {
-      toast.error('Error al iniciar sesión');
+      toast.error('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createDemoAccount = async (email: string, password: string, role: string) => {
+    setLoading(true);
+    try {
+      const { error } = await signUp(email, password, { role });
+      
+      if (error) {
+        if (error.message.includes('already registered')) {
+          toast.success('La cuenta ya existe. Puedes iniciar sesión.');
+          fillCredentials(email, password);
+        } else {
+          toast.error(`Error al crear cuenta ${role}: ${error.message}`);
+        }
+      } else {
+        toast.success(`¡Cuenta ${role} creada exitosamente!`);
+        fillCredentials(email, password);
+      }
+    } catch (error) {
+      toast.error('Error al crear la cuenta demo');
     } finally {
       setLoading(false);
     }
@@ -58,6 +97,7 @@ export const LoginForm: React.FC = () => {
   const fillCredentials = (email: string, password: string) => {
     setEmail(email);
     setPassword(password);
+    setShowRegister(false);
   };
 
   return (
@@ -66,50 +106,69 @@ export const LoginForm: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-            <LogIn className="h-8 w-8 text-white" />
+            {showRegister ? <UserPlus className="h-8 w-8 text-white" /> : <LogIn className="h-8 w-8 text-white" />}
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Iniciar Sesión
+            {showRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Accede a tu sistema integral de gestión de marketing
+            {showRegister 
+              ? 'Crea tu cuenta para acceder al sistema'
+              : 'Accede a tu sistema integral de gestión de marketing'
+            }
           </p>
         </div>
 
         {/* Demo Credentials */}
-        <div className="space-y-4">
-          <div className="text-center">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">
-              Credenciales de Demostración
-            </h3>
-          </div>
-          
-          {demoCredentials.map((cred, index) => (
-            <div 
-              key={index}
-              className={`${cred.bgColor} border ${cred.borderColor} rounded-lg p-4 cursor-pointer hover:shadow-md transition-all`}
-              onClick={() => fillCredentials(cred.email, cred.password)}
-            >
-              <div className="flex items-start">
-                <cred.icon className={`h-5 w-5 ${cred.color} mt-0.5`} />
-                <div className="ml-3 flex-1">
-                  <h4 className={`text-sm font-medium ${cred.color}`}>
-                    {cred.role}
-                  </h4>
-                  <div className="mt-2 text-sm text-gray-700">
-                    <p><strong>Email:</strong> {cred.email}</p>
-                    <p><strong>Contraseña:</strong> {cred.password}</p>
+        {!showRegister && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Cuentas de Demostración
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Si las cuentas no existen, puedes crearlas automáticamente
+              </p>
+            </div>
+            
+            {demoCredentials.map((cred, index) => (
+              <div 
+                key={index}
+                className={`${cred.bgColor} border ${cred.borderColor} rounded-lg p-4`}
+              >
+                <div className="flex items-start">
+                  <cred.icon className={`h-5 w-5 ${cred.color} mt-0.5`} />
+                  <div className="ml-3 flex-1">
+                    <h4 className={`text-sm font-medium ${cred.color}`}>
+                      {cred.role}
+                    </h4>
+                    <div className="mt-2 text-sm text-gray-700">
+                      <p><strong>Email:</strong> {cred.email}</p>
+                      <p><strong>Contraseña:</strong> {cred.password}</p>
+                    </div>
+                    <div className="mt-3 flex space-x-2">
+                      <button
+                        onClick={() => fillCredentials(cred.email, cred.password)}
+                        className="text-xs bg-white border border-gray-300 rounded px-3 py-1 hover:bg-gray-50 transition-colors"
+                      >
+                        Usar credenciales
+                      </button>
+                      <button
+                        onClick={() => createDemoAccount(cred.email, cred.password, cred.role.toLowerCase())}
+                        disabled={loading}
+                        className="text-xs bg-blue-600 text-white rounded px-3 py-1 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      >
+                        Crear cuenta
+                      </button>
+                    </div>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Haz clic aquí para usar estas credenciales
-                  </p>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Login Form */}
+        {/* Login/Register Form */}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
@@ -155,7 +214,7 @@ export const LoginForm: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          <div className="space-y-4">
             <button
               type="submit"
               disabled={loading}
@@ -165,13 +224,44 @@ export const LoginForm: React.FC = () => {
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <>
-                  <LogIn className="h-5 w-5 mr-2" />
-                  Iniciar Sesión
+                  {showRegister ? <UserPlus className="h-5 w-5 mr-2" /> : <LogIn className="h-5 w-5 mr-2" />}
+                  {showRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
                 </>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowRegister(!showRegister)}
+              className="w-full text-sm text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              {showRegister 
+                ? '¿Ya tienes cuenta? Inicia sesión' 
+                : '¿No tienes cuenta? Créala aquí'
+              }
+            </button>
           </div>
         </form>
+
+        {/* Setup Instructions */}
+        <div className="mt-8 bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+            <div className="ml-3">
+              <h4 className="text-sm font-medium text-amber-800">
+                Configuración Inicial
+              </h4>
+              <div className="mt-2 text-sm text-amber-700">
+                <p className="mb-2">Si es tu primera vez usando el sistema:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Usa los botones "Crear cuenta" para las cuentas demo</li>
+                  <li>O crea tu propia cuenta con el formulario de registro</li>
+                  <li>Una vez creada, podrás iniciar sesión normalmente</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Features Info */}
         <div className="mt-8 bg-white rounded-lg p-6 shadow-sm border border-gray-100">

@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, metadata?: any) => Promise<any>;
   signOut: () => Promise<void>;
 }
 
@@ -50,6 +51,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { data, error };
   };
 
+  const signUp = async (email: string, password: string, metadata?: any) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata || {}
+      }
+    });
+
+    // If signup is successful, also create user profile
+    if (data.user && !error) {
+      try {
+        const role = metadata?.role === 'administrador' ? 'admin' : 'user';
+        
+        await supabase
+          .from('users')
+          .insert([{
+            id: data.user.id,
+            email: email,
+            full_name: email.split('@')[0],
+            role: role
+          }]);
+      } catch (profileError) {
+        console.log('Profile creation error (may already exist):', profileError);
+      }
+    }
+
+    return { data, error };
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -59,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     loading,
     signIn,
+    signUp,
     signOut,
   };
 
