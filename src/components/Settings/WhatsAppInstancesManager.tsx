@@ -107,7 +107,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
       setWebhooks(data || []);
       
       // Check if required webhooks exist
-      const requiredWebhooks = ['crear-instancia', 'estatus-instancia'];
+      const requiredWebhooks = ['crear-instancia', 'estatus-instancia', 'qr'];
       const missingWebhooks = requiredWebhooks.filter(name => 
         !data?.some(webhook => webhook.name === name)
       );
@@ -315,6 +315,84 @@ export const WhatsAppInstancesManager: React.FC = () => {
     } catch (error) {
       console.error('Error updating color:', error);
       toast.error('Error al actualizar el color');
+    }
+  };
+
+  const handleConnectInstance = async (instance: WhatsAppInstance) => {
+    try {
+      setSelectedInstance(instance);
+      
+      // Find the QR webhook
+      const qrWebhook = webhooks.find(w => w.name === 'qr');
+      if (!qrWebhook) {
+        toast.error('No se encontró el webhook para obtener el código QR');
+        return;
+      }
+
+      // Call the webhook with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      try {
+        const response = await fetch(qrWebhook.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: instance.name
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = 'Error del servidor';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+          } catch {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        const responseData = await response.json();
+        
+        if (!responseData.qrCode) {
+          throw new Error('No se recibió código QR del servidor');
+        }
+
+        // Update instance with QR code
+        const { error } = await supabase
+          .from('whatsapp_instances')
+          .update({ 
+            qr_code: responseData.qrCode,
+            status: 'connecting'
+          })
+          .eq('id', instance.id);
+
+        if (error) throw error;
+
+        // Show QR code modal
+        setQrCode(responseData.qrCode);
+        setShowQrModal(true);
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Timeout: El webhook tardó demasiado en responder');
+        }
+        throw fetchError;
+      }
+
+    } catch (error) {
+      console.error('Error getting QR code:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`Error al obtener código QR: ${errorMessage}`);
+      setSelectedInstance(null);
     }
   };
 
@@ -566,6 +644,15 @@ export const WhatsAppInstancesManager: React.FC = () => {
 
                       <div className="p-4 border-t border-gray-200 bg-white">
                         <div className="grid grid-cols-2 gap-2">
+                          {instance.status === 'disconnected' && (
+                            <button
+                              onClick={() => handleConnectInstance(instance)}
+                              className="flex items-center justify-center space-x-1 p-2 border border-green-300 text-green-600 rounded-lg hover:bg-green-50 transition-colors"
+                            >
+                              <QrCode className="w-4 h-4" />
+                              <span className="text-sm">Conectar instancia</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedInstance(instance);
