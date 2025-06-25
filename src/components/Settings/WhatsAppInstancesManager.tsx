@@ -340,10 +340,14 @@ export const WhatsAppInstancesManager: React.FC = () => {
         if (!response.ok) {
           let errorMessage = 'Error del servidor';
           try {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-              const errorData = await response.json();
-              errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+            const responseText = await response.text();
+            if (responseText) {
+              try {
+                const errorData = JSON.parse(responseText);
+                errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+              } catch {
+                errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+              }
             } else {
               errorMessage = `HTTP ${response.status}: ${response.statusText}`;
             }
@@ -353,27 +357,35 @@ export const WhatsAppInstancesManager: React.FC = () => {
           throw new Error(errorMessage);
         }
 
+        // Read response as text first to handle empty responses
+        const responseText = await response.text();
+        
+        if (!responseText || responseText.trim() === '') {
+          throw new Error('El servidor devolvió una respuesta vacía');
+        }
+
         // Check the content type of the response
         const contentType = response.headers.get('content-type');
         let responseData;
 
         if (contentType && contentType.includes('application/json')) {
-          // Response is JSON
-          responseData = await response.json();
+          // Response should be JSON, try to parse it
+          try {
+            responseData = JSON.parse(responseText);
+          } catch (parseError) {
+            throw new Error('Respuesta JSON inválida del servidor');
+          }
         } else {
           // Response is plain text (likely a data URL)
-          const textResponse = await response.text();
-          
-          // Check if it's a data URL for an image
-          if (textResponse.startsWith('data:image/')) {
-            responseData = { qrCode: textResponse };
+          if (responseText.startsWith('data:image/')) {
+            responseData = { qrCode: responseText };
           } else {
             // Try to parse as JSON in case content-type header is missing
             try {
-              responseData = JSON.parse(textResponse);
+              responseData = JSON.parse(responseText);
             } catch {
               // If it's not JSON, treat it as a plain QR code string
-              responseData = { qrCode: textResponse };
+              responseData = { qrCode: responseText };
             }
           }
         }
@@ -879,7 +891,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
                   Escanea este código QR con tu WhatsApp
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Abre WhatsApp en tu teléfono, ve a Configuración &gt; Dispositivos vinculados &gt; Vincular un dispositivo
+                  Abre WhatsApp en tu teléfono, ve a Configuración > Dispositivos vinculados > Vincular un dispositivo
                 </p>
                 
                 {qrCode && (
