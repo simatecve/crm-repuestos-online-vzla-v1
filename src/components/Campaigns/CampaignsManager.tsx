@@ -4,7 +4,7 @@ import {
   MessageSquare, 
   Plus, 
   Search, 
-  Filter,
+  Filter, 
   Play,
   Pause,
   Edit,
@@ -20,7 +20,8 @@ import {
   CheckCircle,
   FileText,
   Target,
-  Settings
+  Settings,
+  Split
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -28,6 +29,7 @@ import { CampaignForm } from '../Forms/CampaignForm';
 import { TemplateForm } from '../Forms/TemplateForm';
 import { CampaignStatsModal } from '../Modals/CampaignStatsModal';
 import { CampaignScheduleModal } from '../Modals/CampaignScheduleModal';
+import { ABTestingPanel } from './ABTestingPanel';
 import toast from 'react-hot-toast';
 
 interface Campaign {
@@ -72,10 +74,12 @@ export const CampaignsManager: React.FC = () => {
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showABTestingPanel, setShowABTestingPanel] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [selectedCampaignForStats, setSelectedCampaignForStats] = useState<Campaign | null>(null);
   const [selectedCampaignForSchedule, setSelectedCampaignForSchedule] = useState<Campaign | null>(null);
+  const [selectedCampaignForABTest, setSelectedCampaignForABTest] = useState<Campaign | null>(null);
   const [activeTab, setActiveTab] = useState<'campaigns' | 'templates'>('campaigns');
   const [campaignStats, setCampaignStats] = useState({
     totalSent: 0,
@@ -386,6 +390,11 @@ export const CampaignsManager: React.FC = () => {
     setShowScheduleModal(true);
   };
 
+  const handleSetupABTest = (campaign: Campaign) => {
+    setSelectedCampaignForABTest(campaign);
+    setShowABTestingPanel(true);
+  };
+
   const handleCloseCampaignForm = () => {
     setShowCampaignForm(false);
     setEditingCampaign(null);
@@ -394,6 +403,12 @@ export const CampaignsManager: React.FC = () => {
   const handleCloseTemplateForm = () => {
     setShowTemplateForm(false);
     setEditingTemplate(null);
+  };
+
+  const handleCloseABTestingPanel = () => {
+    setShowABTestingPanel(false);
+    setSelectedCampaignForABTest(null);
+    fetchData();
   };
 
   if (loading || roleLoading) {
@@ -631,11 +646,13 @@ export const CampaignsManager: React.FC = () => {
                         <div className="mb-4 flex flex-wrap gap-2">
                           {campaign.is_ab_test && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              <Split className="w-3 h-3 mr-1" />
                               Test A/B
                             </span>
                           )}
                           {campaign.personalization_config && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              <Target className="w-3 h-3 mr-1" />
                               Personalización Avanzada
                             </span>
                           )}
@@ -716,13 +733,24 @@ export const CampaignsManager: React.FC = () => {
                             </button>
                           )}
                         </div>
-                        <button 
-                          onClick={() => handleViewStats(campaign)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center space-x-1"
-                        >
-                          <BarChart3 className="w-4 h-4" />
-                          <span>Estadísticas</span>
-                        </button>
+                        <div className="flex space-x-2">
+                          {campaign.status === 'draft' && (
+                            <button 
+                              onClick={() => handleSetupABTest(campaign)}
+                              className="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center space-x-1"
+                            >
+                              <Split className="w-4 h-4" />
+                              <span>Test A/B</span>
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleViewStats(campaign)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center space-x-1"
+                          >
+                            <BarChart3 className="w-4 h-4" />
+                            <span>Estadísticas</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -893,6 +921,16 @@ export const CampaignsManager: React.FC = () => {
         onClose={() => setShowScheduleModal(false)}
         onScheduled={fetchData}
       />
+
+      {showABTestingPanel && selectedCampaignForABTest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <ABTestingPanel
+            campaign={selectedCampaignForABTest}
+            onClose={handleCloseABTestingPanel}
+            onSave={fetchData}
+          />
+        </div>
+      )}
     </div>
   );
 };
