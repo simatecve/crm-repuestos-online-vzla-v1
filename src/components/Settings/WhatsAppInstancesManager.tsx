@@ -12,7 +12,8 @@ import {
   XCircle,
   AlertCircle,
   Save,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -58,6 +59,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
   
   // Form state
   const [newInstanceName, setNewInstanceName] = useState('');
@@ -71,6 +73,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setWebhookError(null);
       await Promise.all([
         fetchInstances(),
         fetchWebhooks()
@@ -94,13 +97,28 @@ export const WhatsAppInstancesManager: React.FC = () => {
   };
 
   const fetchWebhooks = async () => {
-    const { data, error } = await supabase
-      .from('whatsapp_webhooks')
-      .select('*')
-      .eq('is_active', true);
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_webhooks')
+        .select('*')
+        .eq('is_active', true);
 
-    if (error) throw error;
-    setWebhooks(data || []);
+      if (error) throw error;
+      setWebhooks(data || []);
+      
+      // Check if required webhooks exist
+      const requiredWebhooks = ['crear-instancia', 'estatus-instancia'];
+      const missingWebhooks = requiredWebhooks.filter(name => 
+        !data?.some(webhook => webhook.name === name)
+      );
+      
+      if (missingWebhooks.length > 0) {
+        setWebhookError(`Webhooks faltantes: ${missingWebhooks.join(', ')}`);
+      }
+    } catch (error) {
+      console.error('Error fetching webhooks:', error);
+      setWebhookError('Error al cargar la configuración de webhooks');
+    }
   };
 
   const handleRefresh = async () => {
@@ -119,62 +137,135 @@ export const WhatsAppInstancesManager: React.FC = () => {
     try {
       setCreatingInstance(true);
 
-      // Find the create instance webhook
-      const createWebhook = webhooks.find(w => w.name === 'crear-instancia');
-      if (!createWebhook) {
-        toast.error('No se encontró el webhook para crear instancias');
+      // Check if webhooks are available
+      if (webhookError) {
+        // Create instance without webhook integration
+        const { data, error } = await supabase
+          .from('whatsapp_instances')
+          .insert([{
+            name: newInstanceName.trim(),
+            color: selectedColor,
+            status: 'disconnected',
+            qr_code: null,
+            created_by: (await supabase.auth.getUser()).data.user?.id
+          }])
+          .select();
+
+        if (error) throw error;
+
+        toast.success('Instancia creada correctamente (sin integración de webhook)');
+        setNewInstanceName('');
+        setSelectedColor('#3B82F6');
+        setActiveTab('instances');
+        fetchInstances();
         return;
       }
 
-      // Call the webhook
-      const response = await fetch(createWebhook.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: newInstanceName.trim(),
-          color: selectedColor
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al crear la instancia');
+      // Find the create instance webhook
+      const createWebhook = webhooks.find(w => w.name === 'crear-instancia');
+      if (!createWebhook) {
+        throw new Error('No se encontró el webhook para crear instancias');
       }
 
-      const responseData = await response.json();
-
-      // Create the instance in Supabase
-      const { data, error } = await supabase
-        .from('whatsapp_instances')
-        .insert([{
-          name: newInstanceName.trim(),
-          color: selectedColor,
-          status: 'connecting',
-          qr_code: responseData.qrCode || null,
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        }])
-        .select();
-
-      if (error) throw error;
-
-      // Show QR code modal
-      if (data && data.length > 0 && responseData.qrCode) {
-        setSelectedInstance(data[0]);
-        setQrCode(responseData.qrCode);
-        setShowQrModal(true);
-      } else {
-        toast.success('Instancia creada correctamente');
+      // Validate webhook URL
+      if (!createWebhook.url || !createWebhook.url.startsWith('http')) {
+        throw new Error('URL del webhook inválida');
       }
 
-      setNewInstanceName('');
-      setSelectedColor('#3B82F6');
-      setActiveTab('instances');
-      fetchInstances();
+      // Call the webhook with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      try {
+        const response = await fetch(createWebhook.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: newInstanceName.trim(),
+            color: selectedColor
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = 'Error del servidor';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+          } catch {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        const responseData = await response.json();
+
+        // Create the instance in Supabase
+        const { data, error } = await supabase
+          .from('whatsapp_instances')
+          .insert([{
+            name: newInstanceName.trim(),
+            color: selectedColor,
+            status: 'connecting',
+            qr_code: responseData.qrCode || null,
+            created_by: (await supabase.auth.getUser()).data.user?.id
+          }])
+          .select();
+
+        if (error) throw error;
+
+        // Show QR code modal if available
+        if (data && data.length > 0 && responseData.qrCode) {
+          setSelectedInstance(data[0]);
+          setQrCode(responseData.qrCode);
+          setShowQrModal(true);
+        } else {
+          toast.success('Instancia creada correctamente');
+        }
+
+        setNewInstanceName('');
+        setSelectedColor('#3B82F6');
+        setActiveTab('instances');
+        fetchInstances();
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Timeout: El webhook tardó demasiado en responder');
+        }
+        
+        // If webhook fails, create instance without webhook integration
+        console.warn('Webhook failed, creating instance without integration:', fetchError);
+        
+        const { data, error } = await supabase
+          .from('whatsapp_instances')
+          .insert([{
+            name: newInstanceName.trim(),
+            color: selectedColor,
+            status: 'disconnected',
+            qr_code: null,
+            created_by: (await supabase.auth.getUser()).data.user?.id
+          }])
+          .select();
+
+        if (error) throw error;
+
+        toast.success('Instancia creada (webhook no disponible - configuración manual requerida)');
+        setNewInstanceName('');
+        setSelectedColor('#3B82F6');
+        setActiveTab('instances');
+        fetchInstances();
+      }
+
     } catch (error) {
       console.error('Error creating instance:', error);
-      toast.error('Error al crear la instancia: ' + (error as Error).message);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`Error al crear la instancia: ${errorMessage}`);
     } finally {
       setCreatingInstance(false);
     }
@@ -240,44 +331,67 @@ export const WhatsAppInstancesManager: React.FC = () => {
         return;
       }
 
-      // Call the webhook
-      const response = await fetch(statusWebhook.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: selectedInstance.name
-        })
-      });
+      // Call the webhook with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al verificar el estado');
+      try {
+        const response = await fetch(statusWebhook.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: selectedInstance.name
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = 'Error del servidor';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+          } catch {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        const responseData = await response.json();
+
+        // Update instance status
+        const { error } = await supabase
+          .from('whatsapp_instances')
+          .update({ 
+            status: responseData.status || 'disconnected'
+          })
+          .eq('id', selectedInstance.id);
+
+        if (error) throw error;
+
+        // Close modal and refresh instances
+        setShowQrModal(false);
+        setSelectedInstance(null);
+        setQrCode(null);
+        fetchInstances();
+        
+        toast.success('Estado actualizado correctamente');
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Timeout: El webhook tardó demasiado en responder');
+        }
+        throw fetchError;
       }
 
-      const responseData = await response.json();
-
-      // Update instance status
-      const { error } = await supabase
-        .from('whatsapp_instances')
-        .update({ 
-          status: responseData.status || 'disconnected'
-        })
-        .eq('id', selectedInstance.id);
-
-      if (error) throw error;
-
-      // Close modal and refresh instances
-      setShowQrModal(false);
-      setSelectedInstance(null);
-      setQrCode(null);
-      fetchInstances();
-      
-      toast.success('Estado actualizado correctamente');
     } catch (error) {
       console.error('Error checking status:', error);
-      toast.error('Error al verificar el estado: ' + (error as Error).message);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`Error al verificar el estado: ${errorMessage}`);
     } finally {
       setCheckingStatus(false);
     }
@@ -355,6 +469,23 @@ export const WhatsAppInstancesManager: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Webhook Error Alert */}
+      {webhookError && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-800">
+                Configuración de Webhook Incompleta
+              </h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                {webhookError}. Las instancias se crearán sin integración automática.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -484,6 +615,14 @@ export const WhatsAppInstancesManager: React.FC = () => {
                   <p className="mt-1 text-sm text-gray-500">
                     Configure el nombre para su nueva instancia de WhatsApp.
                   </p>
+                  {webhookError && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-700">
+                        <AlertTriangle className="w-4 h-4 inline mr-1" />
+                        La instancia se creará sin integración automática debido a problemas de configuración.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -635,7 +774,7 @@ export const WhatsAppInstancesManager: React.FC = () => {
                   Escanea este código QR con tu WhatsApp
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Abre WhatsApp en tu teléfono, ve a Configuración &gt; Dispositivos vinculados &gt; Vincular un dispositivo
+                  Abre WhatsApp en tu teléfono, ve a Configuración > Dispositivos vinculados > Vincular un dispositivo
                 </p>
                 
                 {qrCode && (
