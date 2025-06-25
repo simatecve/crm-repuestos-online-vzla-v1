@@ -136,14 +136,13 @@ export const UserManagement: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      // Get conversation stats for each user
-      const { data: conversationStats, error: statsError } = await supabase
+      // Get all conversations with assigned users
+      const { data: allConversations, error: allError } = await supabase
         .from('conversations')
-        .select('assigned_to, count(*)')
-        .not('assigned_to', 'is', null)
-        .group('assigned_to');
+        .select('assigned_to')
+        .not('assigned_to', 'is', null);
 
-      if (statsError) throw statsError;
+      if (allError) throw allError;
 
       // Get active conversations (with messages in the last 24 hours)
       const yesterday = new Date();
@@ -151,33 +150,39 @@ export const UserManagement: React.FC = () => {
       
       const { data: activeConversations, error: activeError } = await supabase
         .from('conversations')
-        .select('assigned_to, count(*)')
+        .select('assigned_to')
         .not('assigned_to', 'is', null)
-        .gte('updated_at', yesterday.toISOString())
-        .group('assigned_to');
+        .gte('updated_at', yesterday.toISOString());
 
       if (activeError) throw activeError;
 
-      // Create stats object
+      // Create stats object by manually counting
       const stats: Record<string, UserStats> = {};
       
-      // Process conversation stats
-      conversationStats?.forEach(stat => {
-        if (stat.assigned_to) {
-          stats[stat.assigned_to] = {
-            totalAssignedConversations: parseInt(stat.count as string),
-            activeConversations: 0,
-            responseRate: Math.floor(Math.random() * 30) + 70, // Random between 70-100%
-            avgResponseTime: Math.floor(Math.random() * 10) + 1 // Random between 1-10 minutes
-          };
+      // Count total conversations per user
+      const totalCounts: Record<string, number> = {};
+      allConversations?.forEach(conv => {
+        if (conv.assigned_to) {
+          totalCounts[conv.assigned_to] = (totalCounts[conv.assigned_to] || 0) + 1;
         }
       });
-      
-      // Add active conversations
-      activeConversations?.forEach(stat => {
-        if (stat.assigned_to && stats[stat.assigned_to]) {
-          stats[stat.assigned_to].activeConversations = parseInt(stat.count as string);
+
+      // Count active conversations per user
+      const activeCounts: Record<string, number> = {};
+      activeConversations?.forEach(conv => {
+        if (conv.assigned_to) {
+          activeCounts[conv.assigned_to] = (activeCounts[conv.assigned_to] || 0) + 1;
         }
+      });
+
+      // Build stats for each user
+      Object.keys(totalCounts).forEach(userId => {
+        stats[userId] = {
+          totalAssignedConversations: totalCounts[userId],
+          activeConversations: activeCounts[userId] || 0,
+          responseRate: Math.floor(Math.random() * 30) + 70, // Random between 70-100%
+          avgResponseTime: Math.floor(Math.random() * 10) + 1 // Random between 1-10 minutes
+        };
       });
       
       setUserStats(stats);
